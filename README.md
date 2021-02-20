@@ -7,22 +7,26 @@
 
 Instruction:
 First need to start server, otherwise--
+
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/error.jpg" width="50%">
 
 server view:
+
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/server.jpg" width="50%">
 
 
 clients view:
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client1.jpg" width="50%">
 
+<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client1.jpg" width="50%">
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client2.jpg" width="50%">
 
 result of not using "/logout"
+
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/close.jpg" width="50%">
 
 
 only me?
+
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/error.jpg" width="50%">
 
 
