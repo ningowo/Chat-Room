@@ -22,7 +22,7 @@ clients view:
 
 result of not using "/logout"
 
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/close.jpg" width="50%">
+<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/close.jpg" width="80%">
 
 
 only me?
