@@ -1,6 +1,6 @@
 # Chat-Room
 
-(This is a program I wrote long time ago, to be modified now by adding a thread pool and maybe simplify some logic)
+(This is a program I wrote long time ago, to be modified now by adding a thread pool and maybe simplifying some logic)
 
 **This is a multi-thread chat room program which can support the chating of several users, you can also:**
 - Filter bad words
