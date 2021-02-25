@@ -1,156 +1,127 @@
 import java.io.*;
-import java.net.*;
+import java.net.Socket;
 import java.util.Scanner;
 
 /**
  *
- * [Add your documentation here]
+ * This is a multi-thread client program, it use two threads for sending and listening.
  *
- * @author your name and section
- * @version date
+ * @author Ning Ding
+ * @version 2021.2.24
  */
 final class ChatClient {
-    private ObjectInputStream sInput;
-    private ObjectOutputStream sOutput;
-    private Socket socket;
-
-    private final String server;
-    private final String username;
-    private final int port;
-
-    public String message;
-    public int type;
-
-    //public boolean finished;
-
-    private ChatClient(String username, int port, String server) {
-        this.server = server;
-        this.port = port;
-        this.username = username;
+    public static void main(String[] args) {
+        System.out.println("======== Program Start ========");
+        new ChatClient().start(args[0], Integer.parseInt(args[1]), args[2]);
     }
 
-    // create a thread to listen and send username, initialize socket, sInput and sOutput
-    private boolean start() {
+    public void start(String server, int port, String username) {
+        Socket socket = null;
         try {
             socket = new Socket(server, port);
-            sInput = new ObjectInputStream(socket.getInputStream());
-            sOutput = new ObjectOutputStream(socket.getOutputStream());
-
-            // listenFromServer establish a status that continuously listen
-            Runnable r = new ListenFromServer();
-            Thread t = new Thread(r);
-            t.start();
-            sOutput.writeObject(username);
-            return true;
-        } catch (ConnectException e) {
-            System.out.println("Sorry, the server you want to connect is not working now.");
-            return false;
+            new Thread(new Send(socket, username)).start();
+            new Thread(new Listen(socket)).start();
         } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /*
-     * This method is used to send a ChatMessage Objects to the server
-     */
-    private void sendMessage(ChatMessage msg) {
-        try {
-            sOutput.writeObject(msg);
-        } catch (SocketException e) {
-            e.getMessage();
-        } catch (IOException e) {
+            System.out.println("Unable to connect");
             e.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) throws IOException {
-        Scanner scanner = new Scanner(System.in);
-
-        if (args.length == 0) {
-            ChatClient client = new ChatClient("Anonymous", 1500, "localhost");
-
-            process(scanner, client);
-
-        } else if (args.length == 1) {
-            ChatClient client = new ChatClient(args[0], 1500, "localhost");
-
-            // send username
-            process(scanner, client);
-
-        } else if (args.length == 2) {
-            ChatClient client = new ChatClient(args[0], Integer.parseInt(args[1]), "localhost");
-
-            process(scanner, client);
-
-        } else {
-            ChatClient client = new ChatClient(args[0], Integer.parseInt(args[1]), args[2]);
-
-            process(scanner, client);
-        }
 
     }
 
-    private static void process(Scanner scanner, ChatClient client) throws IOException {
-        if (!client.start())
-            return;
+    private class Send implements Runnable {
+        Socket socket;
+        private ObjectOutputStream sOutput;
 
-        System.out.println("Please enter your message");
-        while (true) {
-            client.message = scanner.nextLine();
-            if (client.message.length() == 7) {
-                if (client.message.startsWith("/logout")) {
-                    System.out.println("Thank you for using our chat program!");
-                    client.type = 1;
-                    client.sendMessage(new ChatMessage(client.message, client.type));
-                    client.sInput.close();
-                    client.sOutput.close();
-                    client.socket.isConnected();
-                    break;
-                }
+        public Send(Socket socket, String username) {
+            this.socket = socket;
+            try {
+                sOutput = new ObjectOutputStream(socket.getOutputStream());
+                sOutput.writeObject(username);
+            } catch (IOException e) {
+                System.out.println("Unable to connect.");
+                try {
+                    close(socket, null, sOutput);
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();                    
+                    System.exit(1);
+                } 
             }
-            client.sendMessage(new ChatMessage(client.message, client.type));
+        }
+
+        @Override
+        public void run() {
+            Scanner scanner = new Scanner(System.in);
+            System.out.println("Enter whatever to chat with other\n" +
+                    "Use '/msg someUsername yourMsg' to send to a specific user\n" +
+                    "Use '/logout' to logout\n");
+            try {
+                while (true) {
+                    ChatMessage chatMessage = new ChatMessage();
+                    String msg = scanner.nextLine();
+                    if (msg.startsWith("/logout")) {
+                        System.out.println("Thank you for using our chatRoom!");
+                        sOutput.writeObject(new ChatMessage(msg, 1));
+                        break;
+                    }
+                    sOutput.writeObject(new ChatMessage(msg, 0));
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
-
 
     /**
      * This is a private class inside of the ChatClient
      * It will be responsible for listening for messages from the ChatServer.
      * ie: When other clients send messages, the server will relay it to the client.
      *
-     * @author your name and section
-     * @version date
+     * @author Ning Ding
+     * @version 2021/2/24
      */
-    private final class ListenFromServer implements Runnable {
+    private final class Listen implements Runnable {
+        Socket socket;
+        ObjectInputStream sInput;
+        
+        public Listen(Socket socket) {
+            try {
+                this.socket = socket;
+                this.sInput = new ObjectInputStream(socket.getInputStream());
+            } catch (IOException e) {
+                System.out.println("Fail to send to server " + socket.getInetAddress());
+                System.exit(0);
+            }
+        }
+
         @Override
         public void run() {
             try {
                 while (true) {
-                    //System.out.println("reading");
                     String msg = (String) sInput.readObject();
                     System.out.println(msg);
                 }
-            } catch (SocketException e) {
+            } catch (Exception e) {
+                System.out.println("Connection closed.");
                 try {
-                    socket.close();
-                    sInput.close();
-                    sOutput.close();
-                } catch (SocketException e1) {
-                    System.out.println("Connection closed");
-                } catch (IOException e1) {
-                    e1.printStackTrace();
+                    close(socket, sInput, null);
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
                 }
-            } catch (EOFException e1) {
-                System.out.println();
-                System.out.println("I guess last time you just directly close ChatClients lol, " +
-                        "you should use \"/logout\" instead.");
-                System.out.println("--- But don't worry! I can handle that ;)");
-                System.out.println("Just run it again!");
-                return;
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
             }
         }
     }
+
+    private void close(Socket socket, InputStream is, OutputStream os) throws IOException {
+        if (socket != null) {
+            socket.close();
+        }
+        if (is != null) {
+            is.close();
+        }
+        if (os != null) {
+            os.close();
+        }
+    }
+
 }
+
