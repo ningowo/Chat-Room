@@ -20,15 +20,4 @@ server view:
 clients view:
 
 <img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client1.jpg" width="50%">
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client2.jpg" width="50%">
-
-result of not using "/logout"
-
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/close.jpg" width="80%">
-
-
-only me?
-
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/error.jpg" width="50%">
-
 
