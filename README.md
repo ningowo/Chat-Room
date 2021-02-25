@@ -1,6 +1,18 @@
 # Chat-Room
 
-(This is a program I wrote long time ago, to be modified now by adding a thread pool and maybe simplifying some logic)
+(This is a program I wrote long time ago, being modified now by rearranging the structure for both server and client, and by adding a thread pool for server to speedup.
+
+2021.2.24
+
+Create two inner classes for client to handle sending and listening function. And 160 lines -> 120 lines, yes! Good-bye previous \*\*\*\*.
+
+Modifying server class.
+
+
+
+<br>
+<br>
+)
 
 **This is a multi-thread chat room program which can support the chating of several users, you can also:**
 - Filter bad words
