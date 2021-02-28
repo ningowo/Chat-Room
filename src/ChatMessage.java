@@ -2,38 +2,62 @@ import java.io.Serializable;
 
 /**
  *
- * [Add your documentation here]
+ * A message class to encap information needed, might be removed and use json instead.
  *
- * @author your name and section
- * @version date
+ * @author ding.ning
+ * @date 2021.2.26
  */
 final class ChatMessage implements Serializable {
-    // why have this UID?
     private static final long serialVersionUID = 6898543889087L;
-    private String message;
-    private int type;
-    private String recipient;
+    private String from;
+    private String to;
+    private int type; // -1 - logout, 0 - start, 1 - private, 2 - public
+    private String content;
 
-    public ChatMessage(String message, int type) {
-        this.message = message;
+
+    public ChatMessage() {}
+
+    public ChatMessage(String from, int type) {
+        this.from = from;
         this.type = type;
     }
 
-    public ChatMessage(String message, int type, String recipient) {
-        this.message = message;
+    public ChatMessage(String from, int type, String content) {
+        this.from = from;
         this.type = type;
-        this.recipient = recipient;
+        this.content = content;
     }
 
-    public String getMessage() {
-        return message;
+    public ChatMessage(String from, int type, String content, String to) {
+        this.from = from;
+        this.to = to;
+        this.type = type;
+        this.content = content;
+    }
+
+    public String getFrom() {
+        return from;
+    }
+
+    public String getTo() {
+        return to;
     }
 
     public int getType() {
         return type;
     }
 
-    public String getRecipient() {
-        return recipient;
+    public String getContent() {
+        return content;
+    }
+
+    @Override
+    public String toString() {
+        return "ChatMessage{" +
+                "from='" + from + '\'' +
+                ", to='" + to + '\'' +
+                ", type=" + type +
+                ", content='" + content + '\'' +
+                '}';
     }
 }
