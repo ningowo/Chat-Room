@@ -38,3 +38,6 @@ A user can:
 - (list all online users)
 - logout
 
+<br>
+For lastest version, please use ChatServerNIO, ChatClientNIO and ChatMessage.
+
