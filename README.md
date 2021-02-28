@@ -15,9 +15,11 @@ Modifying server class.
 Update server and client using Java NIO and rebuild ChatMessage. 
 <br>
 
-Todo: 
+之后要改的: 
 
 replace ChatMessage with json(fastjson, yes!)
+
+服务器连接关闭后，客户端不会直接关闭，而是等待一段时间尝试重连，如果服务器在这段时间内恢复正常，会自动连上
 
 add a function to let user get usernames of all online users
 
