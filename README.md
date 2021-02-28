@@ -2,14 +2,20 @@
 
 
 **This is a chat room program using Java NIO which can support the chating from large amount of users**
+
 <br>
+
 A user can:
 - send message to all user(default).
 - send private message to a specific user using "/tell toUsername hereIsContent" (If the aiming user do not exist, will get an error message)
 - (list all online users)
 - logout
+
+
 <br>
+
 For lastest version, please use ChatServerNIO, ChatClientNIO and ChatMessage.
+
 <br>
 
 NOTE:
