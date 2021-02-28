@@ -1,249 +1,195 @@
+import jdk.management.resource.internal.inst.SocketChannelImplRMHooks;
+
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 
 /**
  *
- * by googling, learned how to get current date and convert it to String
+ * This is a chatroom server using Java NIO, it is designed to handle the chat 
+ * between large amount of clients
  *
- * @author your name and section
- * @version date
+ * @author ding.ning
+ * @date 2021.2.25
  */
 
-final class ChatServer {
-    private static int uniqueId = 0;
-    private final List<ClientThread> clients = new ArrayList<>();
+public class ChatServer {
     private final int port;
-    public static String wordToFilter;
+    private ChatFilter filter;
+    private Selector selector;
+    private final ConcurrentHashMap<String, SocketChannel> clients = new ConcurrentHashMap<>();
 
-    private ChatServer(int port) {
+    public ChatServer(int port) {
         this.port = port;
     }
 
-    // wait for client connection
-    // create a new ClientThread object (run a method when created)
-    private void start() {
+    public ChatServer(int port, String fileToFilter) {
+        this.port = port;
+        this.filter = new ChatFilter(fileToFilter);
+    }
+
+    public void start() {
+        System.out.println("Server start");
+
         try {
-            ServerSocket serverSocket = new ServerSocket(port);
-            while (true) {
-                Socket socket = serverSocket.accept();
-                Runnable r = new ClientThread(socket, uniqueId++);
-                Thread t = new Thread(r);
-                clients.add((ClientThread) r);
-                /*
-                !!!! the time that t, and thus r, start, also ClientThread created is -- after t.start() is run
-                 */
-                t.start();
-            }
+            // 注册并设置一下参数
+            selector = Selector.open();
+            ServerSocketChannel ssc = ServerSocketChannel.open();
+            ssc.configureBlocking(false);
+            ssc.socket().bind(new InetSocketAddress(port));
+            ssc.socket().setReuseAddress(true);
+            ssc.register(selector, SelectionKey.OP_ACCEPT);
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
 
-    private void broadcast(String message) throws IOException {
-        // filter
-        ChatFilter chatFilter = new ChatFilter(wordToFilter);
-        String filteredMessage = chatFilter.filter(message);
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(5, 10, 2,
+                TimeUnit.MINUTES, new ArrayBlockingQueue<Runnable>(20));
 
-        //generate date
-        SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-        String dateString = dateFormat.format(Calendar.getInstance().getTime());
-
-        // print for clients
-        for (int i = 0; i < clients.size(); i++) {
-            synchronized (clients) {
-                clients.get(i).writeMessage(String.format("%s  -%s", filteredMessage, dateString));
-            }
-        }
-        // print for server
-        System.out.printf("\"%s\" broadcast at %s\n", filteredMessage, dateString);
-    }
-
-    private void remove(int id1) {
-        for (int i = 0; i < clients.size(); i++) {
-            synchronized (clients) {
-                if (clients.get(i).id == id1)
-                    clients.remove(i);
-            }
-        }
-    }
-
-    private void directMessage(String message, String username) throws IOException {
-        // filter
-        ChatFilter chatFilter = new ChatFilter(wordToFilter);
-        String filteredMessage = chatFilter.filter(message);
-
-        //generate date
-        SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-        String dateString = dateFormat.format(Calendar.getInstance().getTime());
-
-        // print for clients
-        for (int i = 0; i < clients.size(); i++) {
-            synchronized (clients) {
-                if (username.equals(clients.get(i).username)) {
-                    clients.get(i).writeMessage(String.format("Direct message from %s: %s  -%s", username,
-                            filteredMessage, dateString));
-                }
-            }
-        }
-        // print for server
-        System.out.printf("message \"%s\" sent directly to %s at %s\n", filteredMessage, username, dateString);
-    }
-
-    // main-------------
-    public static void main(String[] args) throws IOException {
-        System.out.println("ChatServer Main method Started.");
-
-        if (args.length == 2) {
-            ChatServer.wordToFilter = args[1];
-            ChatFilter chatFilter = new ChatFilter(wordToFilter);
-        }
-
-        if (args[0].isBlank()) {
-            ChatServer server = new ChatServer(1500);
-            server.start();
-        } else {
-            ChatServer server = new ChatServer(Integer.parseInt(args[0]));
-            server.start();
-        }
-
-        System.out.println("ChatServer Main method finished.");
-
-    }
-
-    /**
-     * This is a private class inside of the ChatServer
-     * A new thread will be created to run this every time a new client connects.
-     *
-     * @author your name and section
-     * @version date
-     */
-    public final class ClientThread implements Runnable {
-        Socket socket;
-        ObjectInputStream sInput;
-        ObjectOutputStream sOutput;
-        int id;
-        String username;
-        ChatMessage cm;
-        String possibleUsername;
-
-        private ClientThread(Socket socket, int id) {
-            this.id = id;
-            this.socket = socket;
-            try {
-                sOutput = new ObjectOutputStream(socket.getOutputStream());
-                sInput = new ObjectInputStream(socket.getInputStream());
-                possibleUsername = (String) sInput.readObject();
-
-                sOutput.writeObject("Welcome to Our Chat Program!");
-
-                for (int i = 0; i < clients.size(); i++) {
-                    if (possibleUsername.equals(clients.get(i).username)) {
-                        sOutput.writeObject("Sorry, you can not log in again with same username");
-                        clients.remove(clients.size() - 1);
-                        close();
-                        return;
-                    }
-                }
-                username = possibleUsername;
-
-                System.out.println(username + ": connection established");
-                //sOutput.writeObject("connection established");
-                //sOutput.flush();
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        // when ClientThread is created, run run() (readObject immediately)
-        public void run() {
-            try {
-                while (true) {
-                    cm = (ChatMessage) sInput.readObject();
-
-                    // if user input /logout, close server parts
-                    if (cm.getType() == 1) {
-                        broadcast(String.format("%s has logged out", username));
-                        clients.remove(this);
-                        close();
-
-                    } else {
-                        if (cm.getMessage().length() == 0) {
-                            broadcast(String.format("%s: %s", username, cm.getMessage()));
-                        } else {
-                            if (cm.getMessage().charAt(0) == '/') {
-                                String[] array = cm.getMessage().split(" ");
-
-                                // for direct message and printing all connected user
-                                if (array[0].equals("/msg")) {
-                                    if (array[1].equals(username)) {
-                                        sOutput.writeObject("Sorry, you can not send message to yourself.");
-                                        continue;
-                                    }
-                                    for (int i = 0; i < clients.size(); i++) {
-                                        if (array[1].equals(clients.get(i).username)) {
-                                            directMessage(cm.getMessage().substring(4), clients.get(i).username);
-                                            sOutput.writeObject(String.format("Your message has been sent directly " +
-                                                    "to %s", clients.get(i).username));
-                                        }
-                                    }
-                                } else if (array[0].equals("/list")) {
-                                    //ArrayList<String> arrayList = new ArrayList<>();
-                                    sOutput.writeObject("Still connected users are: ");
-                                    for (ClientThread client : clients) {
-                                        if (!client.username.equals(username))
-                                            sOutput.writeObject(String.format("%s ", client.username));
-                                    }
-                                    //sOutput.writeObject("\n");
-                                } else {
-                                    broadcast(String.format("%s: %s", username, cm.getMessage()));
+        try {
+            while (true) {
+                // 如果selector发现新连接。不用if因为这个是阻塞的，一直阻塞直到选择到channel
+                selector.select();
+                // 用key找到对应连接，并挨个处理
+                Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                while (keys.hasNext()) {
+                    SelectionKey key = keys.next();
+                    try {
+                        if (key.isAcceptable()) {
+                            // 如果是新连接就注册到selector里，监听新连接的读事件
+                            ServerSocketChannel ssc = (ServerSocketChannel) key.channel();
+                            SocketChannel sc = ssc.accept();
+                            sc.configureBlocking(false);
+                            // 绑定两个buffer
+                            sc.register(selector, SelectionKey.OP_READ);
+                            //System.out.println("==Connection established: " + key);
+                        } else if (key.isReadable()){ // 客户端有写入
+                            //System.out.println("==Write request: " + key);
+                            // 通过key找到channel
+                            SocketChannel clientChannel = (SocketChannel) key.channel();
+                            // 有需求的时候再建buffer（不是在accept的时候建）
+                            ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                            // 把数据读到byteBuffer（内存）里
+                            clientChannel.read(byteBuffer);
+                            // 翻转一下，准备写给别的client
+                            //byteBuffer.flip();
+                            // 把buffer转换成数组
+                            ObjectInputStream is = new ObjectInputStream(
+                                    new ByteArrayInputStream(byteBuffer.array()));
+                            // 读完之后归零
+                            byteBuffer.clear();
+                            // 处理得到的信息
+                            ChatMessage msg = (ChatMessage) is.readObject();
+                            executor.execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    process(msg, clientChannel);
                                 }
-
-                            } else {
-                                //System.out.println("let's see the message: " + cm.getMessage());
-                                broadcast(String.format("%s: %s", username, cm.getMessage()));
+                            });
+                        }
+                    } catch (ClassNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        key.channel().close();
+                        for (Map.Entry<String, SocketChannel> entry: clients.entrySet()) {
+                            if (key.channel() == entry.getValue()) {
+                                clients.remove(entry.getKey());
+                                break;
                             }
                         }
+                        System.out.println(key.channel() + " closed");
+                    } finally {
+                        //System.out.println("key removed");
+                        keys.remove();
                     }
-                    //System.out.println("Number of client: " + clients.size());
-                }
-            } catch (SocketException e) {
-                if (username != null)
-                    System.out.println("closed for " + username);
-                try {
-                    close();
-                } catch (IOException e1) {
-                    e1.printStackTrace();
-                }
-            } catch (NullPointerException e) {
-            System.out.println(" (Last time, this user close chat program with the wrong method)");
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
+                } // end while
             }
+        } catch (IOException e) {
+            System.out.println("Server close.");
+            e.printStackTrace();
         }
 
-        private void close() throws IOException {
-            socket.close();
-            sInput.close();
-            sOutput.close();
-        }
+    }
 
-        private boolean writeMessage(String message) {
+
+    private void process(ChatMessage msg, SocketChannel toChannel)  {
+        String from = msg.getFrom();
+        String to = msg.getTo();
+        int type = msg.getType();
+        String content = msg.getContent();
+
+        if (type == 2) {
+            for (Map.Entry<String, SocketChannel> entry : clients.entrySet()) {
+                writeText(from, entry.getValue(), content);
+            }
+            System.out.printf("--> %s: %s\n", from, content);
+        } else if (type == 1) {
+            boolean exist = false;
+            for (Map.Entry<String, SocketChannel> entry : clients.entrySet()) {
+                if (entry.getKey().equals(to)) {
+                    exist = true;
+                    writeText(from, entry.getValue(), content);
+                    System.out.printf("--> %s => %s: %s\n", from, to, content);
+                }
+            }
+            if (!exist) {
+                writeText("Server", toChannel, "No such user exist.");
+            }
+        } else if (type == 0) {
+            if (clients.containsKey(from)) {
+                writeText("Server", toChannel, "Sorry, username has been occupied.");
+                System.out.println("Connection failed - duplicate username: " + from);
+            } else {
+                clients.put(from, toChannel);
+                writeText("Server", toChannel, "Connected to server");
+                System.out.println("Connected: " + from);
+            }
+        } else if (type == -1) {
+            System.out.println("... " + from + " logout");
+            clients.remove(from);
             try {
-                sOutput.writeObject(message);
-                sOutput.flush();
-                return true;
-            } catch (SocketException e) {
-                System.out.println(" (Last time, this user close chat program with the wrong method)");
-                return false;
+                toChannel.close();
+                System.out.println("Remove " + from);
             } catch (IOException e) {
                 e.printStackTrace();
-                return false;
             }
         }
+    }
+
+    public void writeText(String from, SocketChannel channel, String text) {
+        String sb = filter.filter(from + ": " + text);
+
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        buffer.clear();
+        buffer.put(sb.getBytes());
+        buffer.flip();
+
+        synchronized (buffer) {
+            try {
+                channel.finishConnect();
+                channel.write(buffer);
+            } catch (IOException e) {
+                try {
+                    channel.close();
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                }
+                System.out.println("Unable to write the message from " + from);
+
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        ChatServer server = new ChatServer(Integer.parseInt(args[0]), args[1]);
+        server.start();
     }
 }
