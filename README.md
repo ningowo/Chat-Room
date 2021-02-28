@@ -4,32 +4,33 @@
 
 2021.2.24
 
-Create two inner classes for client to handle sending and listening function. And 160 lines -> 120 lines, yes! Good-bye previous \*\*\*\*.
+Create two inner classes for client to handle sending and listening function. And 160 lines -> 120 lines, yes!
 
 Modifying server class.
 
+2021.2.27 
+
+Update server and client using Java NIO and rebuild ChatMessage. 
+
+Todo: 
+
+replace ChatMessage with json(fastjson, yes!)
+
+add a function to let user get usernames of all online users
+
+try to make it works when not sending message from my PC to my PC
+
+revise the structure of server if have idea later.
+
+might support HTTP
 
 
 <br>
 <br>
 )
 
-**This is a multi-thread chat room program which can support the chating of several users, you can also:**
-- Filter bad words
-- Broadcast to all users
-- send message to a specific user
-
-Instruction:
-First need to start server, otherwise--
-
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/error.jpg" width="50%">
-
-server view:
-
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/server.jpg" width="50%">
-
-
-clients view:
-
-<img src="https://raw.githubusercontent.com/ningowo/img_repo/main/client1.jpg" width="50%">
+**This is a chat room program using Java NIO which can support the chating from large amount of users, user can:**
+- send message to all user(default).
+- send private message to a specific user using "/tell toUsername hereIsContent" (If the aiming user do not exist, will get an error message)
+- logout
 
