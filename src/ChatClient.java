@@ -4,7 +4,7 @@ import java.util.Scanner;
 
 /**
  *
- * This is a multi-thread client program, it use two threads for sending and listening.
+ * This is a multi-thread client program, it starts two threads for sending and listening.
  *
  * @author Ning Ding
  * @version 2021.2.24
