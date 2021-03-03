@@ -94,6 +94,9 @@ public class ChatClient {
             socketChannel.write(ByteBuffer.wrap(baos.toByteArray()));
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (NotYetConnectedException e) {
+            System.out.println("Server not started");
+            System.exit(0);
         } finally {
             try {
                 assert oos != null;
