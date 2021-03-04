@@ -172,20 +172,19 @@ public class ChatServer {
         buffer.put(sb.getBytes());
         buffer.flip();
 
-        synchronized (buffer) {
+        
+        try {
+            channel.finishConnect();
+            channel.write(buffer);
+        } catch (IOException e) {
             try {
-                channel.finishConnect();
-                channel.write(buffer);
-            } catch (IOException e) {
-                try {
-                    channel.close();
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                }
-                System.out.println("Unable to write the message from " + from);
-
+                channel.close();
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
             }
+            System.out.println("Unable to write the message from " + from);
         }
+        
     }
 
     public static void main(String[] args) {
