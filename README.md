@@ -14,7 +14,7 @@ A user can:
 
 <br>
 
-For lastest version, please use ChatServerNIO, ChatClientNIO and ChatMessage.
+For lastest version, please use ChatServer, ChatClient and ChatMessage.
 
 <br>
 

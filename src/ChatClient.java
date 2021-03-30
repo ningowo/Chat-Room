@@ -1,127 +1,153 @@
 import java.io.*;
-import java.net.Socket;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.NotYetConnectedException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 import java.util.Scanner;
 
 /**
  *
- * This is a multi-thread client program, it starts two threads for sending and listening.
+ * This is a multi-thread client program based on NIO(althought might be indifferent from BIO)
+ * And it use two threads for selecting and listening.
  *
  * @author Ning Ding
- * @version 2021.2.24
+ * @version 2021.2.27
  */
-final class ChatClient {
-    public static void main(String[] args) {
-        System.out.println("======== Program Start ========");
-        new ChatClient().start(args[0], Integer.parseInt(args[1]), args[2]);
+public class ChatClient {
+    private SocketChannel socketChannel;
+    private Selector selector = null;
+    private final String username;
+
+    public ChatClient(String username) {
+        this.username = username;
     }
 
-    public void start(String server, int port, String username) {
-        Socket socket = null;
+    public static void main(String[] args) {
+        System.out.println("======== Program Start ========");
+        ChatClient client = new ChatClient(args[2]);
+        client.start(args[0], Integer.parseInt(args[1]));
+    }
+
+    public void start(String host, int port) {
         try {
-            socket = new Socket(server, port);
-            new Thread(new Send(socket, username)).start();
-            new Thread(new Listen(socket)).start();
+            selector = Selector.open();
+            socketChannel = SocketChannel.open();
+            socketChannel.configureBlocking(false);
+            socketChannel.connect(new InetSocketAddress(host, port));
+            socketChannel.register(selector, SelectionKey.OP_READ);
+
+            System.out.println("Enter whatever to chat with other\n" +
+                    "Use '/msg someUsername yourMsg' to send to a specific user\n" +
+                    "Use '/logout' to logout\n" +
+                    "===============================");
+
+            write(new ChatMessage(username, 0));
+            new Thread(new Send()).start();
+            listen();
         } catch (IOException e) {
             System.out.println("Unable to connect");
             e.printStackTrace();
         }
-
     }
-
     private class Send implements Runnable {
-        Socket socket;
-        private ObjectOutputStream sOutput;
-
-        public Send(Socket socket, String username) {
-            this.socket = socket;
-            try {
-                sOutput = new ObjectOutputStream(socket.getOutputStream());
-                sOutput.writeObject(username);
-            } catch (IOException e) {
-                System.out.println("Unable to connect.");
-                try {
-                    close(socket, null, sOutput);
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();                    
-                    System.exit(1);
-                } 
-            }
-        }
-
         @Override
         public void run() {
             Scanner scanner = new Scanner(System.in);
-            System.out.println("Enter whatever to chat with other\n" +
-                    "Use '/msg someUsername yourMsg' to send to a specific user\n" +
-                    "Use '/logout' to logout\n");
             try {
                 while (true) {
-                    ChatMessage chatMessage = new ChatMessage();
                     String msg = scanner.nextLine();
-                    if (msg.startsWith("/logout")) {
-                        System.out.println("Thank you for using our chatRoom!");
-                        sOutput.writeObject(new ChatMessage(msg, 1));
-                        break;
+                    String[] info = msg.split(" ");
+                    if (info.length > 0) {
+                        if ("/logout".equals(info[0])) {
+                            System.out.println("Thank you for using our chatRoom!");
+                            write(new ChatMessage(username, -1));
+                            throw new IllegalStateException();
+                        } else if (info.length > 2 && "/tell".equals(info[0])) {
+                            // msg is like: /tell ding hello there!
+                            // public ChatMessage(String from, int type, String content, String to)
+                            write(new ChatMessage(username, 1, msg.substring(6), info[1]));
+                        } else {
+                            write(new ChatMessage(username, 2, msg));
+                        }
                     }
-                    sOutput.writeObject(new ChatMessage(msg, 0));
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    /**
-     * This is a private class inside of the ChatClient
-     * It will be responsible for listening for messages from the ChatServer.
-     * ie: When other clients send messages, the server will relay it to the client.
-     *
-     * @author Ning Ding
-     * @version 2021/2/24
-     */
-    private final class Listen implements Runnable {
-        Socket socket;
-        ObjectInputStream sInput;
-        
-        public Listen(Socket socket) {
-            try {
-                this.socket = socket;
-                this.sInput = new ObjectInputStream(socket.getInputStream());
-            } catch (IOException e) {
-                System.out.println("Fail to send to server " + socket.getInetAddress());
+            } catch (IllegalStateException e) {
+                System.out.println("Bye~");
                 System.exit(0);
             }
         }
-
-        @Override
-        public void run() {
-            try {
-                while (true) {
-                    String msg = (String) sInput.readObject();
-                    System.out.println(msg);
-                }
-            } catch (Exception e) {
-                System.out.println("Connection closed.");
-                try {
-                    close(socket, sInput, null);
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                }
-            }
-        }
     }
 
-    private void close(Socket socket, InputStream is, OutputStream os) throws IOException {
-        if (socket != null) {
-            socket.close();
+    public void write(ChatMessage msg) {
+        ObjectOutputStream oos = null;
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            oos = new ObjectOutputStream(baos);
+            oos.writeObject(msg);
+            oos.flush();
+            // 一定！一定！要加这一句！
+            // 不然start里socketChannel只是申请建立连接，不代表已经可以连接
+            // 会报NotYetConnectedException，写的很明确了，还没连上
+            socketChannel.finishConnect();
+            socketChannel.write(ByteBuffer.wrap(baos.toByteArray()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NotYetConnectedException e) {
+            System.out.println("Server not started");
+            System.exit(0);
+        } finally {
+            try {
+                assert oos != null;
+                oos.close();
+            } catch (IOException ioException) {
+                ioException.printStackTrace();
+            }
         }
-        if (is != null) {
-            is.close();
-        }
-        if (os != null) {
-            os.close();
+
+
+    }
+
+    public void listen() {
+
+        try {
+            while (true) {
+                //阻塞等待事件触发
+                selector.select();
+                Iterator<SelectionKey> keysToRead = selector.selectedKeys().iterator();
+                while (keysToRead.hasNext()) {
+                    SelectionKey key = keysToRead.next();
+                    SocketChannel sc = (SocketChannel) key.channel();
+                    if (key.isReadable()) {
+                        // channel -> buffer
+                        ByteBuffer buffer = ByteBuffer.allocate(1024);
+                        sc.read(buffer);
+                        buffer.flip();
+                        String content = new String(buffer.array());
+                        if ("Server: Sorry, username has been occupied.".equals(content)) {
+                            throw new IllegalArgumentException();
+                        }
+                        // 打印server送过来的内容
+                        System.out.println(content);
+                    }
+                    keysToRead.remove();
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Server closed connection.");
+            System.exit(0);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Server: Sorry, username has been occupied.");
+            System.exit(0);
         }
     }
 
 }
+
+
+
+
+
 
